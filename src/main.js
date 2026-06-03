@@ -479,30 +479,172 @@ async function saveRendition() {
 
 function renderReports() {
   setTitle('Reportes', 'Consulta, reimprime, edita, anula o elimina rendiciones.')
+
+  const driverOptions = state.drivers
+    .map(d => `<option value="${safe(d.id)}">${safe(d.name)}</option>`)
+    .join('')
+
   $('reports').innerHTML = `
     <div class="card">
       <div class="form-grid">
-        <div class="field"><label>Desde</label><input id="fromDate" class="input" type="date"></div>
-        <div class="field"><label>Hasta</label><input id="toDate" class="input" type="date"></div>
+        <div class="field">
+          <label>Desde</label>
+          <input id="fromDate" class="input" type="date">
+        </div>
+
+        <div class="field">
+          <label>Hasta</label>
+          <input id="toDate" class="input" type="date">
+        </div>
+
+        <div class="field">
+          <label>Repartidor</label>
+          <select id="filterDriver" class="input">
+            <option value="">Todos los repartidores</option>
+            ${driverOptions}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Buscar</label>
+          <input id="searchReports" class="input" type="search" placeholder="Buscar por cliente, repartidor, estado o monto">
+        </div>
       </div>
-      <div class="actions"><button class="btn secondary" id="filterReports">Filtrar</button><button class="btn ghost" id="exportCsv">Exportar CSV</button></div>
+
+      <div class="actions">
+        <button class="btn secondary" id="filterReports">Filtrar</button>
+        <button class="btn ghost" id="clearReports">Limpiar</button>
+        <button class="btn ghost" id="exportCsv">Exportar CSV</button>
+      </div>
     </div>
-    <div class="card" style="margin-top:18px"><div id="reportTable"></div></div>
+
+    <div class="card" style="margin-top:18px">
+      <div id="reportTable"></div>
+    </div>
   `
+
   $('filterReports').addEventListener('click', drawReportTable)
+  $('clearReports').addEventListener('click', () => {
+    $('fromDate').value = ''
+    $('toDate').value = ''
+    $('filterDriver').value = ''
+    $('searchReports').value = ''
+    drawReportTable()
+  })
   $('exportCsv').addEventListener('click', exportCsv)
+
+  $('searchReports').addEventListener('input', drawReportTable)
+  $('filterDriver').addEventListener('change', drawReportTable)
+  $('fromDate').addEventListener('change', drawReportTable)
+  $('toDate').addEventListener('change', drawReportTable)
+
   drawReportTable()
 }
-
 function filteredReportRows() {
   const f = $('fromDate')?.value
   const t = $('toDate')?.value
-  return state.renditions.filter(r => (!f || r.rendition_date >= f) && (!t || r.rendition_date <= t))
+  const driverId = $('filterDriver')?.value
+  const search = ($('searchReports')?.value || '').trim().toLowerCase()
+
+  return state.renditions.filter(r => {
+    const byDateFrom = !f || r.rendition_date >= f
+    const byDateTo = !t || r.rendition_date <= t
+    const byDriver = !driverId || r.driver_id === driverId
+
+    const clientsText = (r.rendition_clients || [])
+      .map(c => `${c.client_name || ''} ${c.products || ''} ${c.amount || ''}`)
+      .join(' ')
+
+    const expensesText = (r.rendition_expenses || [])
+      .map(e => `${e.expense_type || ''} ${e.observation || ''} ${e.amount || ''}`)
+      .join(' ')
+
+    const searchable = [
+      r.rendition_date,
+      String(r.rendition_time || '').slice(0, 5),
+      r.driver_name,
+      r.expected_amount,
+      r.expenses_amount,
+      r.received_amount,
+      r.difference_amount,
+      r.status,
+      r.observations,
+      clientsText,
+      expensesText
+    ].join(' ').toLowerCase()
+
+    const bySearch = !search || searchable.includes(search)
+
+    return byDateFrom && byDateTo && byDriver && bySearch
+  })
 }
 function drawReportTable() { $('reportTable').innerHTML = reportsTable(filteredReportRows(), true) }
 function reportsTable(rows, actions) {
   if (!rows.length) return '<div class="empty">Sin rendiciones registradas</div>'
-  return `<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Hora</th><th>Repartidor</th><th>Clientes</th><th>Esperado</th><th>Gastos</th><th>Recibido</th><th>Diferencia</th><th>Estado</th>${actions ? '<th>Acciones</th>' : ''}</tr></thead><tbody>${rows.map(r => `<tr><td>${safe(r.rendition_date)}</td><td>${safe(String(r.rendition_time || '').slice(0,5))}</td><td>${safe(r.driver_name)}</td><td>${(r.rendition_clients || []).length}</td><td>${money(r.expected_amount)}</td><td>${money(r.expenses_amount)}</td><td>${money(r.received_amount)}</td><td>${money(r.difference_amount)}</td><td><span class="badge ${r.status}">${safe(r.status)}</span></td>${actions ? `<td><div class="actions"><button class="btn ghost small" onclick="window.rukaActions.view('${r.id}')">Ver</button><button class="btn ghost small" onclick="window.rukaActions.reprint('${r.id}')">Imprimir</button>${r.status !== 'anulada' ? `<button class="btn ghost small" onclick="window.rukaActions.edit('${r.id}')">Editar</button><button class="btn ghost small" onclick="window.rukaActions.void('${r.id}')">Anular</button>` : ''}${state.profile.role === 'admin' ? `<button class="btn danger small" onclick="window.rukaActions.del('${r.id}')">Eliminar</button>` : ''}</div></td>` : ''}</tr>`).join('')}</tbody></table></div>`
+
+  const totalExpected = rows.reduce((s, r) => s + Number(r.expected_amount || 0), 0)
+  const totalExpenses = rows.reduce((s, r) => s + Number(r.expenses_amount || 0), 0)
+  const totalReceived = rows.reduce((s, r) => s + Number(r.received_amount || 0), 0)
+  const totalDiff = rows.reduce((s, r) => s + Number(r.difference_amount || 0), 0)
+
+  return `
+    <div class="report-mini-summary">
+      <span><strong>${rows.length}</strong> rendición(es)</span>
+      <span>Esperado: <strong>${money(totalExpected)}</strong></span>
+      <span>Gastos: <strong>${money(totalExpenses)}</strong></span>
+      <span>Recibido: <strong>${money(totalReceived)}</strong></span>
+      <span>Diferencia: <strong>${money(totalDiff)}</strong></span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Hora</th>
+            <th>Repartidor</th>
+            <th>Clientes</th>
+            <th>Esperado</th>
+            <th>Gastos</th>
+            <th>Recibido</th>
+            <th>Diferencia</th>
+            <th>Estado</th>
+            ${actions ? '<th>Acciones</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td>${safe(r.rendition_date)}</td>
+              <td>${safe(String(r.rendition_time || '').slice(0,5))}</td>
+              <td>${safe(r.driver_name)}</td>
+              <td>${(r.rendition_clients || []).length}</td>
+              <td>${money(r.expected_amount)}</td>
+              <td>${money(r.expenses_amount)}</td>
+              <td>${money(r.received_amount)}</td>
+              <td>${money(r.difference_amount)}</td>
+              <td><span class="badge ${r.status}">${safe(r.status)}</span></td>
+              ${actions ? `
+                <td>
+                  <div class="actions">
+                    <button class="btn ghost small" onclick="window.rukaActions.view('${r.id}')">Ver</button>
+                    <button class="btn ghost small" onclick="window.rukaActions.reprint('${r.id}')">Imprimir</button>
+                    ${r.status !== 'anulada' ? `
+                      <button class="btn ghost small" onclick="window.rukaActions.edit('${r.id}')">Editar</button>
+                      <button class="btn ghost small" onclick="window.rukaActions.void('${r.id}')">Anular</button>
+                    ` : ''}
+                    ${state.profile.role === 'admin' ? `
+                      <button class="btn danger small" onclick="window.rukaActions.del('${r.id}')">Eliminar</button>
+                    ` : ''}
+                  </div>
+                </td>
+              ` : ''}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `
 }
 
 window.rukaActions = {

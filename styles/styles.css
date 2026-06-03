@@ -913,3 +913,22 @@ body.printing-receipt .receipt-item strong{
     line-height:1.16!important;
   }
 }
+
+.report-mini-summary{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:14px;
+}
+
+.report-mini-summary span{
+  display:inline-flex;
+  gap:5px;
+  align-items:center;
+  padding:9px 12px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff7ed;
+  color:#5a3928;
+  font-size:13px;
+}
