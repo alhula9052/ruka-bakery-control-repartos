@@ -650,7 +650,34 @@ textarea:focus{
 }
 
 .admin-only{
+  display:none!important;
+}
+
+/* Mostrar botones admin del menú y acciones admin */
+.role-admin .nav .admin-only,
+.role-admin button.admin-only,
+.role-admin .actions .admin-only,
+.role-admin span.admin-only,
+.role-admin div.admin-only:not(.section){
+  display:initial!important;
+}
+
+/* Las secciones SIEMPRE deben respetar el flujo normal */
+.section{
   display:none;
+}
+
+.section.active{
+  display:block;
+}
+
+/* Secciones admin: solo se muestran cuando están activas */
+.role-admin .section.admin-only{
+  display:none!important;
+}
+
+.role-admin .section.admin-only.active{
+  display:block!important;
 }
 
 .role-admin .admin-only{
