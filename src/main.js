@@ -286,9 +286,11 @@ function renderStatusSummary(rows) {
 }
 
 function renderRendition() {
-  setTitle(state.editingId ? 'Editar rendición' : 'Nueva rendición', 'Selecciona repartidor, clientes visitados, gastos y dinero recibido.')
+  setTitle(state.editingId ? 'Editar rendición' : 'Nueva rendición', 'Selecciona repartidor, clientes visitados, gastos, transferencias y dinero recibido.')
   const draft = state.draft
-  const expected = draft.clients.reduce((s, c) => s + Number(c.amount || 0), 0)
+  const gross = draft.clients.reduce((s, c) => s + Number(c.amount || 0), 0)
+  const transferred = draft.clients.reduce((s, c) => s + Number(c.transfer_amount || 0), 0)
+  const expected = draft.clients.reduce((s, c) => s + Number(c.cash_expected_amount ?? (Number(c.amount || 0) - Number(c.transfer_amount || 0))), 0)
   const expenses = draft.expenses.reduce((s, e) => s + Number(e.amount || 0), 0)
   const toRender = expected - expenses
   const diff = Number(draft.received || 0) - toRender
@@ -309,10 +311,12 @@ function renderRendition() {
         <h2>Resumen</h2>
         <div class="summary-row"><span>Repartidor</span><strong>${safe(draft.driver?.name || 'Pendiente')}</strong></div>
         <div class="summary-row"><span>Clientes</span><strong>${draft.clients.length}</strong></div>
-        <div class="summary-row"><span>Monto esperado</span><strong id="sumExpected">${money(expected)}</strong></div>
+        <div class="summary-row"><span>Total entregado/vendido</span><strong id="sumGross">${money(gross)}</strong></div>
+        <div class="summary-row"><span>Transferido por clientes</span><strong id="sumTransferred">${money(transferred)}</strong></div>
+        <div class="summary-row"><span>Efectivo esperado</span><strong id="sumExpected">${money(expected)}</strong></div>
         <div class="summary-row"><span>Gastos</span><strong id="sumExpenses">${money(expenses)}</strong></div>
         <div class="summary-row"><span>A rendir</span><strong id="sumToRender">${money(toRender)}</strong></div>
-        <div class="field"><label>Monto recibido</label><input id="received" class="input" type="text" inputmode="numeric" value="${draft.received ? numberCL(draft.received) : ''}"></div>
+        <div class="field"><label>Monto recibido en efectivo</label><input id="received" class="input" type="text" inputmode="numeric" value="${draft.received ? numberCL(draft.received) : ''}"></div>
         <div class="summary-row"><span>Diferencia</span><strong id="sumDiff" class="${status === 'correcta' ? 'ok' : status === 'faltante' ? 'danger' : 'warn'}">${money(diff)}</strong></div>
         <div class="field"><label>Observaciones</label><textarea id="observations" rows="3" class="input">${safe(draft.observations)}</textarea></div>
         <div class="actions"><button class="btn secondary" id="expenseBtn"><i class="fa-solid fa-receipt"></i> Gasto</button><button class="btn ghost" id="resetDraft"><i class="fa-solid fa-rotate-left"></i> Limpiar</button></div>
@@ -323,16 +327,17 @@ function renderRendition() {
     <div class="card" style="margin-top:18px"><h3>Clientes agregados</h3><div id="selectedClients"></div></div>
     <div class="card" style="margin-top:18px"><h3>Gastos agregados</h3><div id="selectedExpenses"></div></div>
     <div class="bottom-actions">
-      <div><strong>${draft.driver ? safe(draft.driver.name) : 'Sin repartidor'}</strong><br><span class="muted" id="bottomSummaryText">${draft.clients.length} clientes · A rendir ${money(toRender)} · Diferencia ${money(diff)}</span></div>
+      <div><strong>${draft.driver ? safe(draft.driver.name) : 'Sin repartidor'}</strong><br><span class="muted" id="bottomSummaryText">${draft.clients.length} clientes · Efectivo esperado ${money(expected)} · A rendir ${money(toRender)} · Diferencia ${money(diff)}</span></div>
       <div class="actions"><button class="btn secondary" id="printCurrent"><i class="fa-solid fa-print"></i> Imprimir</button><button class="btn" id="saveRendition"><i class="fa-solid fa-floppy-disk"></i> ${state.editingId ? 'Guardar cambios' : 'Guardar rendición'}</button></div>
     </div>
   `
-  bindRendition(expected, expenses)
+  bindRendition()
   renderDriverList('')
   renderClientList('')
   renderSelectedClients()
   renderSelectedExpenses()
 }
+
 
 function bindRendition() {
   $('driverSearch').addEventListener('input', e => renderDriverList(e.target.value))
@@ -347,11 +352,15 @@ function bindRendition() {
 }
 
 function updateRenditionLiveSummary() {
-  const expected = state.draft.clients.reduce((s, c) => s + Number(c.amount || 0), 0)
+  const gross = state.draft.clients.reduce((s, c) => s + Number(c.amount || 0), 0)
+  const transferred = state.draft.clients.reduce((s, c) => s + Number(c.transfer_amount || 0), 0)
+  const expected = state.draft.clients.reduce((s, c) => s + Number(c.cash_expected_amount ?? (Number(c.amount || 0) - Number(c.transfer_amount || 0))), 0)
   const expenses = state.draft.expenses.reduce((s, e) => s + Number(e.amount || 0), 0)
   const toRender = expected - expenses
   const diff = Number(state.draft.received || 0) - toRender
   const diffEl = $('sumDiff')
+  if ($('sumGross')) $('sumGross').textContent = money(gross)
+  if ($('sumTransferred')) $('sumTransferred').textContent = money(transferred)
   if ($('sumExpected')) $('sumExpected').textContent = money(expected)
   if ($('sumExpenses')) $('sumExpenses').textContent = money(expenses)
   if ($('sumToRender')) $('sumToRender').textContent = money(toRender)
@@ -359,9 +368,10 @@ function updateRenditionLiveSummary() {
     diffEl.textContent = money(diff)
     diffEl.className = diff === 0 ? 'ok' : diff < 0 ? 'danger' : 'warn'
   }
-  if ($('bottomSummaryText')) $('bottomSummaryText').textContent = `${state.draft.clients.length} clientes · A rendir ${money(toRender)} · Diferencia ${money(diff)}`
+  if ($('bottomSummaryText')) $('bottomSummaryText').textContent = `${state.draft.clients.length} clientes · Efectivo esperado ${money(expected)} · A rendir ${money(toRender)} · Diferencia ${money(diff)}`
   if ($('receiptPreview')) $('receiptPreview').innerHTML = receiptHtml(buildReceiptDraft())
 }
+
 
 function renderDriverList(filter) {
   const rows = state.drivers.filter(d => d.name.toLowerCase().includes((filter || '').toLowerCase()))
@@ -410,9 +420,42 @@ function renderSelectedClients() {
   const box = $('selectedClients')
   if (!box) return
   if (!state.draft.clients.length) { box.innerHTML = '<div class="empty">Sin clientes agregados</div>'; return }
-  box.innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>Cliente</th><th>Comentario</th><th>Monto</th><th></th></tr></thead><tbody>${state.draft.clients.map((c, i) => `<tr><td>${safe(c.client_name || c.name)}</td><td>${safe(c.products || '')}</td><td>${money(c.amount)}</td><td><button class="btn ghost small remove-client" data-i="${i}">Quitar</button></td></tr>`).join('')}</tbody></table></div>`
+
+  box.innerHTML = `
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Comentario</th>
+            <th>Total</th>
+            <th>Transferido</th>
+            <th>Efectivo esperado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.draft.clients.map((c, i) => {
+            const transferAmount = Number(c.transfer_amount || 0)
+            const cashExpected = Number(c.cash_expected_amount ?? (Number(c.amount || 0) - transferAmount))
+            return `
+              <tr>
+                <td>${safe(c.client_name || c.name)}</td>
+                <td>${safe(c.products || '')}</td>
+                <td>${money(c.amount)}</td>
+                <td>${money(transferAmount)}</td>
+                <td>${money(cashExpected)}</td>
+                <td><button class="btn ghost small remove-client" data-i="${i}">Quitar</button></td>
+              </tr>
+            `
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `
   box.querySelectorAll('.remove-client').forEach(b => b.addEventListener('click', () => { state.draft.clients.splice(Number(b.dataset.i), 1); renderRendition() }))
 }
+
 
 function renderSelectedExpenses() {
   const box = $('selectedExpenses')
@@ -439,18 +482,24 @@ function expenseModal() {
 async function saveRendition() {
   if (!state.draft.driver) { alert('Selecciona un repartidor.'); return }
   if (!state.draft.clients.length) { alert('Agrega al menos un cliente.'); return }
-  const expected = state.draft.clients.reduce((s, c) => s + Number(c.amount || 0), 0)
+
+  const gross = state.draft.clients.reduce((s, c) => s + Number(c.amount || 0), 0)
+  const transferred = state.draft.clients.reduce((s, c) => s + Number(c.transfer_amount || 0), 0)
+  const expected = state.draft.clients.reduce((s, c) => s + Number(c.cash_expected_amount ?? (Number(c.amount || 0) - Number(c.transfer_amount || 0))), 0)
   const expenses = state.draft.expenses.reduce((s, e) => s + Number(e.amount || 0), 0)
+
   const payload = {
     rendition_date: today(),
     driver_id: state.draft.driver.id,
     driver_name: state.draft.driver.name,
     expected_amount: expected,
+    transferred_amount: transferred,
     expenses_amount: expenses,
     received_amount: Number(state.draft.received || 0),
     observations: state.draft.observations || null,
     updated_by: state.user.id,
   }
+
   let renditionId = state.editingId
   let res
   if (renditionId) {
@@ -460,129 +509,74 @@ async function saveRendition() {
     res = await supabase.from('renditions').insert(payload).select().single()
     renditionId = res.data?.id
   }
+
   if (res.error) { alert('No se pudo guardar: ' + res.error.message); return }
+
   await supabase.from('rendition_clients').delete().eq('rendition_id', renditionId)
   await supabase.from('rendition_expenses').delete().eq('rendition_id', renditionId)
+
   if (state.draft.clients.length) {
-    const details = state.draft.clients.map(c => ({ rendition_id: renditionId, client_id: c.client_id, client_name: c.client_name || c.name, document_type: c.document_type || null, document_number: c.document_number || null, products: c.products || null, amount: Number(c.amount || 0) }))
+    const details = state.draft.clients.map(c => {
+      const amount = Number(c.amount || 0)
+      const transferAmount = Number(c.transfer_amount || 0)
+      return {
+        rendition_id: renditionId,
+        client_id: c.client_id,
+        client_name: c.client_name || c.name,
+        document_type: c.document_type || null,
+        document_number: c.document_number || null,
+        products: c.products || null,
+        amount,
+        transfer_amount: transferAmount,
+        cash_expected_amount: Number(c.cash_expected_amount ?? (amount - transferAmount)),
+      }
+    })
+
     const detailRes = await supabase.from('rendition_clients').insert(details)
     if (detailRes.error) { alert('Rendición guardada, pero falló detalle de clientes: ' + detailRes.error.message); return }
   }
+
   if (state.draft.expenses.length) {
     const expensesRows = state.draft.expenses.map(e => ({ rendition_id: renditionId, expense_type: e.expense_type || 'otro', amount: Number(e.amount || 0), observation: e.observation || null }))
     const expenseRes = await supabase.from('rendition_expenses').insert(expensesRows)
     if (expenseRes.error) { alert('Rendición guardada, pero falló detalle de gastos: ' + expenseRes.error.message); return }
   }
-  state.draft = emptyDraft(); state.editingId = null
-  await loadData(); setSection('reports')
+
+  state.draft = emptyDraft()
+  state.editingId = null
+  await loadData()
+  setSection('reports')
 }
+
 
 function renderReports() {
   setTitle('Reportes', 'Consulta, reimprime, edita, anula o elimina rendiciones.')
-
-  const driverOptions = state.drivers
-    .map(d => `<option value="${safe(d.id)}">${safe(d.name)}</option>`)
-    .join('')
-
   $('reports').innerHTML = `
     <div class="card">
       <div class="form-grid">
-        <div class="field">
-          <label>Desde</label>
-          <input id="fromDate" class="input" type="date">
-        </div>
-
-        <div class="field">
-          <label>Hasta</label>
-          <input id="toDate" class="input" type="date">
-        </div>
-
-        <div class="field">
-          <label>Repartidor</label>
-          <select id="filterDriver" class="input">
-            <option value="">Todos los repartidores</option>
-            ${driverOptions}
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Buscar</label>
-          <input id="searchReports" class="input" type="search" placeholder="Buscar por cliente, repartidor, estado o monto">
-        </div>
+        <div class="field"><label>Desde</label><input id="fromDate" class="input" type="date"></div>
+        <div class="field"><label>Hasta</label><input id="toDate" class="input" type="date"></div>
       </div>
-
-      <div class="actions">
-        <button class="btn secondary" id="filterReports">Filtrar</button>
-        <button class="btn ghost" id="clearReports">Limpiar</button>
-        <button class="btn ghost" id="exportCsv">Exportar CSV</button>
-      </div>
+      <div class="actions"><button class="btn secondary" id="filterReports">Filtrar</button><button class="btn ghost" id="exportCsv">Exportar CSV</button></div>
     </div>
-
-    <div class="card" style="margin-top:18px">
-      <div id="reportTable"></div>
-    </div>
+    <div class="card" style="margin-top:18px"><div id="reportTable"></div></div>
   `
-
   $('filterReports').addEventListener('click', drawReportTable)
-  $('clearReports').addEventListener('click', () => {
-    $('fromDate').value = ''
-    $('toDate').value = ''
-    $('filterDriver').value = ''
-    $('searchReports').value = ''
-    drawReportTable()
-  })
   $('exportCsv').addEventListener('click', exportCsv)
-
-  $('searchReports').addEventListener('input', drawReportTable)
-  $('filterDriver').addEventListener('change', drawReportTable)
-  $('fromDate').addEventListener('change', drawReportTable)
-  $('toDate').addEventListener('change', drawReportTable)
-
   drawReportTable()
 }
+
 function filteredReportRows() {
   const f = $('fromDate')?.value
   const t = $('toDate')?.value
-  const driverId = $('filterDriver')?.value
-  const search = ($('searchReports')?.value || '').trim().toLowerCase()
-
-  return state.renditions.filter(r => {
-    const byDateFrom = !f || r.rendition_date >= f
-    const byDateTo = !t || r.rendition_date <= t
-    const byDriver = !driverId || r.driver_id === driverId
-
-    const clientsText = (r.rendition_clients || [])
-      .map(c => `${c.client_name || ''} ${c.products || ''} ${c.amount || ''}`)
-      .join(' ')
-
-    const expensesText = (r.rendition_expenses || [])
-      .map(e => `${e.expense_type || ''} ${e.observation || ''} ${e.amount || ''}`)
-      .join(' ')
-
-    const searchable = [
-      r.rendition_date,
-      String(r.rendition_time || '').slice(0, 5),
-      r.driver_name,
-      r.expected_amount,
-      r.expenses_amount,
-      r.received_amount,
-      r.difference_amount,
-      r.status,
-      r.observations,
-      clientsText,
-      expensesText
-    ].join(' ').toLowerCase()
-
-    const bySearch = !search || searchable.includes(search)
-
-    return byDateFrom && byDateTo && byDriver && bySearch
-  })
+  return state.renditions.filter(r => (!f || r.rendition_date >= f) && (!t || r.rendition_date <= t))
 }
 function drawReportTable() { $('reportTable').innerHTML = reportsTable(filteredReportRows(), true) }
 function reportsTable(rows, actions) {
   if (!rows.length) return '<div class="empty">Sin rendiciones registradas</div>'
 
   const totalExpected = rows.reduce((s, r) => s + Number(r.expected_amount || 0), 0)
+  const totalTransferred = rows.reduce((s, r) => s + Number(r.transferred_amount || 0), 0)
   const totalExpenses = rows.reduce((s, r) => s + Number(r.expenses_amount || 0), 0)
   const totalReceived = rows.reduce((s, r) => s + Number(r.received_amount || 0), 0)
   const totalDiff = rows.reduce((s, r) => s + Number(r.difference_amount || 0), 0)
@@ -590,7 +584,8 @@ function reportsTable(rows, actions) {
   return `
     <div class="report-mini-summary">
       <span><strong>${rows.length}</strong> rendición(es)</span>
-      <span>Esperado: <strong>${money(totalExpected)}</strong></span>
+      <span>Efectivo esperado: <strong>${money(totalExpected)}</strong></span>
+      <span>Transferido: <strong>${money(totalTransferred)}</strong></span>
       <span>Gastos: <strong>${money(totalExpenses)}</strong></span>
       <span>Recibido: <strong>${money(totalReceived)}</strong></span>
       <span>Diferencia: <strong>${money(totalDiff)}</strong></span>
@@ -604,9 +599,10 @@ function reportsTable(rows, actions) {
             <th>Hora</th>
             <th>Repartidor</th>
             <th>Clientes</th>
-            <th>Esperado</th>
+            <th>Transferido</th>
+            <th>Esperado efectivo</th>
             <th>Gastos</th>
-            <th>Recibido</th>
+            <th>Recibido efectivo</th>
             <th>Diferencia</th>
             <th>Estado</th>
             ${actions ? '<th>Acciones</th>' : ''}
@@ -619,6 +615,7 @@ function reportsTable(rows, actions) {
               <td>${safe(String(r.rendition_time || '').slice(0,5))}</td>
               <td>${safe(r.driver_name)}</td>
               <td>${(r.rendition_clients || []).length}</td>
+              <td>${money(r.transferred_amount || 0)}</td>
               <td>${money(r.expected_amount)}</td>
               <td>${money(r.expenses_amount)}</td>
               <td>${money(r.received_amount)}</td>
@@ -647,33 +644,94 @@ function reportsTable(rows, actions) {
   `
 }
 
+
 window.rukaActions = {
   view(id) {
     const r = state.renditions.find(x => x.id === id)
     if (!r) return
+    const transferred = Number(r.transferred_amount || 0)
+    const gross = (r.rendition_clients || []).reduce((s, c) => s + Number(c.amount || 0), 0)
     openModal('Detalle de rendición', `
       <div class="summary-row"><span>Fecha</span><strong>${safe(r.rendition_date)} ${safe(String(r.rendition_time || '').slice(0,5))}</strong></div>
       <div class="summary-row"><span>Repartidor</span><strong>${safe(r.driver_name)}</strong></div>
-      <div class="summary-row"><span>Monto esperado</span><strong>${money(r.expected_amount)}</strong></div>
+      <div class="summary-row"><span>Total entregado/vendido</span><strong>${money(gross)}</strong></div>
+      <div class="summary-row"><span>Transferido por clientes</span><strong>${money(transferred)}</strong></div>
+      <div class="summary-row"><span>Efectivo esperado</span><strong>${money(r.expected_amount)}</strong></div>
       <div class="summary-row"><span>Gastos</span><strong>${money(r.expenses_amount)}</strong></div>
       <div class="summary-row"><span>Recibido</span><strong>${money(r.received_amount)}</strong></div>
       <div class="summary-row"><span>Diferencia</span><strong>${money(r.difference_amount)}</strong></div>
       <div class="summary-row"><span>Estado</span><strong>${safe(r.status)}</strong></div>
       <h4>Clientes</h4>
-      <div class="compact-list">${(r.rendition_clients || []).map(c => `<div class="list-item"><span><strong>${safe(c.client_name)}</strong><span class="muted">${safe(c.products || '')}</span></span><strong>${money(c.amount)}</strong></div>`).join('') || '<div class="empty">Sin clientes</div>'}</div>
+      <div class="compact-list">${(r.rendition_clients || []).map(c => `
+        <div class="list-item">
+          <span>
+            <strong>${safe(c.client_name)}</strong>
+            <span class="muted">${safe(c.products || '')}</span>
+            <span class="muted">Transferido: ${money(c.transfer_amount || 0)} · Efectivo: ${money(c.cash_expected_amount ?? (Number(c.amount || 0) - Number(c.transfer_amount || 0)))}</span>
+          </span>
+          <strong>${money(c.amount)}</strong>
+        </div>
+      `).join('') || '<div class="empty">Sin clientes</div>'}</div>
       <h4>Gastos</h4>
       <div class="compact-list">${(r.rendition_expenses || []).map(e => `<div class="list-item"><span><strong>${safe(e.expense_type)}</strong><span class="muted">${safe(e.observation || '')}</span></span><strong>${money(e.amount)}</strong></div>`).join('') || '<div class="empty">Sin gastos</div>'}</div>
       <div class="actions" style="margin-top:14px"><button class="btn secondary" onclick="window.rukaActions.reprint('${r.id}')">Imprimir</button></div>
     `)
   },
-  reprint(id) { const r = state.renditions.find(x => x.id === id); if (r) printReceipt(buildReceiptFromRendition(r)) },
-  edit(id) { const r = state.renditions.find(x => x.id === id); if (!r || r.status === 'anulada') return; state.editingId = id; state.draft = { driver: state.drivers.find(d => d.id === r.driver_id) || { id: r.driver_id, name: r.driver_name }, clients: (r.rendition_clients || []).map(c => ({ client_id: c.client_id, client_name: c.client_name, name: c.client_name, document_type: c.document_type, document_number: c.document_number, products: c.products, amount: Number(c.amount || 0) })), expenses: (r.rendition_expenses || []).map(e => ({ expense_type: e.expense_type, amount: Number(e.amount || 0), observation: e.observation })), received: Number(r.received_amount || 0), observations: r.observations || '' }; setSection('rendition') },
-  async void(id) { const r = state.renditions.find(x => x.id === id); if (!r || r.status === 'anulada') return; const reason = prompt('Motivo de anulación') || ''; const { error } = await supabase.rpc('void_rendition', { p_rendition_id: id, p_reason: reason }); if (error) { alert(error.message); return } await loadData(); renderReports() },
-  async del(id) { if (state.profile.role !== 'admin') return; if (!confirm('Esta acción elimina definitivamente la rendición. ¿Continuar?')) return; const { error } = await supabase.from('renditions').delete().eq('id', id); if (error) { alert(error.message); return } await loadData(); renderReports() }
+  reprint(id) {
+    const r = state.renditions.find(x => x.id === id)
+    if (r) printReceipt(buildReceiptFromRendition(r))
+  },
+  edit(id) {
+    const r = state.renditions.find(x => x.id === id)
+    if (!r || r.status === 'anulada') return
+    state.editingId = id
+    state.draft = {
+      driver: state.drivers.find(d => d.id === r.driver_id) || { id: r.driver_id, name: r.driver_name },
+      clients: (r.rendition_clients || []).map(c => {
+        const amount = Number(c.amount || 0)
+        const transferAmount = Number(c.transfer_amount || 0)
+        return {
+          client_id: c.client_id,
+          client_name: c.client_name,
+          name: c.client_name,
+          document_type: c.document_type,
+          document_number: c.document_number,
+          products: c.products,
+          amount,
+          transfer_amount: transferAmount,
+          cash_expected_amount: Number(c.cash_expected_amount ?? (amount - transferAmount)),
+        }
+      }),
+      expenses: (r.rendition_expenses || []).map(e => ({ expense_type: e.expense_type, amount: Number(e.amount || 0), observation: e.observation })),
+      received: Number(r.received_amount || 0),
+      observations: r.observations || ''
+    }
+    setSection('rendition')
+  },
+  async void(id) {
+    const r = state.renditions.find(x => x.id === id)
+    if (!r || r.status === 'anulada') return
+    const reason = prompt('Motivo de anulación') || ''
+    const { error } = await supabase.rpc('void_rendition', { p_rendition_id: id, p_reason: reason })
+    if (error) { alert(error.message); return }
+    await loadData()
+    renderReports()
+  },
+  async del(id) {
+    if (state.profile.role !== 'admin') return
+    if (!confirm('Esta acción elimina definitivamente la rendición. ¿Continuar?')) return
+    const { error } = await supabase.from('renditions').delete().eq('id', id)
+    if (error) { alert(error.message); return }
+    await loadData()
+    renderReports()
+  }
 }
 
+
 function buildReceiptDraft() {
-  const expected = state.draft.clients.reduce((s, c) => s + Number(c.amount || 0), 0)
+  const gross = state.draft.clients.reduce((s, c) => s + Number(c.amount || 0), 0)
+  const transferred = state.draft.clients.reduce((s, c) => s + Number(c.transfer_amount || 0), 0)
+  const expected = state.draft.clients.reduce((s, c) => s + Number(c.cash_expected_amount ?? (Number(c.amount || 0) - Number(c.transfer_amount || 0))), 0)
   const expenses = state.draft.expenses.reduce((s, e) => s + Number(e.amount || 0), 0)
   const toRender = expected - expenses
   const diff = Number(state.draft.received || 0) - toRender
@@ -684,6 +742,8 @@ function buildReceiptDraft() {
     driver_name: state.draft.driver?.name || '',
     clients: state.draft.clients,
     expenses_detail: state.draft.expenses,
+    gross,
+    transferred,
     expected,
     expenses,
     to_render: toRender,
@@ -694,24 +754,38 @@ function buildReceiptDraft() {
   }
 }
 
+
 function buildReceiptFromRendition(r) {
+  const clientRows = (r.rendition_clients || []).map(c => {
+    const amount = Number(c.amount || 0)
+    const transferAmount = Number(c.transfer_amount || 0)
+    return {
+      client_id: c.client_id,
+      client_name: c.client_name,
+      name: c.client_name,
+      amount,
+      transfer_amount: transferAmount,
+      cash_expected_amount: Number(c.cash_expected_amount ?? (amount - transferAmount)),
+      products: c.products || '',
+      comment: c.products || ''
+    }
+  })
+
+  const gross = clientRows.reduce((s, c) => s + Number(c.amount || 0), 0)
+  const transferred = Number(r.transferred_amount ?? clientRows.reduce((s, c) => s + Number(c.transfer_amount || 0), 0))
+
   return {
     date: r.rendition_date,
     time: String(r.rendition_time || '').slice(0, 5),
     driver_name: r.driver_name,
-    clients: (r.rendition_clients || []).map(c => ({
-      client_id: c.client_id,
-      client_name: c.client_name,
-      name: c.client_name,
-      amount: Number(c.amount || 0),
-      products: c.products || '',
-      comment: c.products || ''
-    })),
+    clients: clientRows,
     expenses_detail: (r.rendition_expenses || []).map(e => ({
       expense_type: e.expense_type,
       amount: Number(e.amount || 0),
       observation: e.observation || ''
     })),
+    gross,
+    transferred,
     expected: Number(r.expected_amount || 0),
     expenses: Number(r.expenses_amount || 0),
     to_render: Number(r.expected_amount || 0) - Number(r.expenses_amount || 0),
@@ -722,14 +796,45 @@ function buildReceiptFromRendition(r) {
   }
 }
 
-function normalizeReceiptName(name) {
-  const text = String(name || '').replace(/\s+/g, ' ').trim()
-  if (!text) return 'Cliente'
+
+function shortReceiptName(name) {
+  const original = String(name || '').trim()
+  if (!original) return 'Cliente'
+
+  const cleaned = original
+    .replace(/\s+/g, ' ')
+    .replace(/SOCIEDAD/gi, 'SOC.')
+    .replace(/RESPONSABILIDAD/gi, 'RESP.')
+    .replace(/LIMITADA/gi, 'LTDA.')
+    .replace(/ALIMENTACION/gi, 'ALIM.')
+    .replace(/ALIMENTACIÓN/gi, 'ALIM.')
+    .replace(/SERVICIOS/gi, 'SERV.')
+    .replace(/COMERCIAL/gi, 'COM.')
+    .replace(/INVERSIONES/gi, 'INV.')
+    .replace(/GASTRONOMIA/gi, 'GASTR.')
+    .replace(/GASTRONOMÍA/gi, 'GASTR.')
+    .replace(/RESTAURANT/gi, 'REST.')
+    .replace(/PANADERIA/gi, 'PAN.')
+    .replace(/PANADERÍA/gi, 'PAN.')
+    .replace(/CAFETERIA/gi, 'CAF.')
+    .replace(/CAFETERÍA/gi, 'CAF.')
+    .trim()
+
+  return cleaned.length > 32 ? `${cleaned.slice(0, 32)}…` : cleaned
+}
+
+function shortReceiptText(value, max = 38) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  return text.length > max ? `${text.slice(0, max)}…` : text
+}
+
+function shortReceiptName(name) {
+  const text = String(name || '').trim()
 
   return text
     .replace(/\bSOCIEDAD\b/gi, 'SOC.')
     .replace(/\bSERVICIOS\b/gi, 'SERV.')
-    .replace(/\bSERVICIO\b/gi, 'SERV.')
     .replace(/\bALIMENTACIÓN\b/gi, 'ALIM.')
     .replace(/\bALIMENTACION\b/gi, 'ALIM.')
     .replace(/\bLIMITADA\b/gi, 'LTDA.')
@@ -737,42 +842,40 @@ function normalizeReceiptName(name) {
     .replace(/\bINVERSIONES\b/gi, 'INV.')
     .replace(/\bRESPONSABILIDAD\b/gi, 'RESP.')
     .replace(/\bEMPRESA\b/gi, 'EMP.')
-    .replace(/\bGASTRONOMÍA\b/gi, 'GASTR.')
-    .replace(/\bGASTRONOMIA\b/gi, 'GASTR.')
-    .replace(/\bRESTAURANT\b/gi, 'REST.')
-    .replace(/\bPANADERÍA\b/gi, 'PAN.')
-    .replace(/\bPANADERIA\b/gi, 'PAN.')
-    .replace(/\bCAFETERÍA\b/gi, 'CAF.')
-    .replace(/\bCAFETERIA\b/gi, 'CAF.')
-    .trim()
-}
-
-function shortReceiptName(name, max = 34) {
-  const text = normalizeReceiptName(name)
-  return text.length > max ? `${text.slice(0, max)}…` : text
-}
-
-function shortReceiptText(value, max = 42) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim()
-  if (!text) return ''
-  return text.length > max ? `${text.slice(0, max)}…` : text
+    .slice(0, 36)
 }
 
 function receiptHtml(r) {
   const clients = r.clients || []
   const expenses = r.expenses_detail || []
-  const toRender = r.to_render ?? (Number(r.expected || 0) - Number(r.expenses || 0))
+  const gross = r.gross ?? clients.reduce((s, c) => s + Number(c.amount || 0), 0)
+  const transferred = r.transferred ?? clients.reduce((s, c) => s + Number(c.transfer_amount || 0), 0)
+  const expected = r.expected ?? clients.reduce((s, c) => s + Number(c.cash_expected_amount ?? (Number(c.amount || 0) - Number(c.transfer_amount || 0))), 0)
+  const toRender = r.to_render ?? (Number(expected || 0) - Number(r.expenses || 0))
 
   const clientRows = clients.length
     ? clients.map(c => {
         const name = shortReceiptName(c.client_name || c.name || 'Cliente')
         const comment = shortReceiptText(c.comment || c.products || c.observation || '')
+        const amount = Number(c.amount || 0)
+        const transferAmount = Number(c.transfer_amount || 0)
+        const cashExpected = Number(c.cash_expected_amount ?? (amount - transferAmount))
 
         return `
           <div class="receipt-item receipt-client-row">
             <span>${safe(name)}</span>
-            <strong>${money(c.amount || 0)}</strong>
+            <strong>${money(amount)}</strong>
           </div>
+          ${transferAmount > 0 ? `
+            <div class="receipt-item receipt-subitem">
+              <span>Transferido</span>
+              <strong>${money(transferAmount)}</strong>
+            </div>
+            <div class="receipt-item receipt-subitem">
+              <span>Efectivo esperado</span>
+              <strong>${money(cashExpected)}</strong>
+            </div>
+          ` : ''}
           ${comment ? `<div class="receipt-note">${safe(comment)}</div>` : ''}
         `
       }).join('')
@@ -811,8 +914,16 @@ function receiptHtml(r) {
       <div class="receipt-section">RESUMEN</div>
 
       <div class="receipt-item">
-        <span>Monto esperado</span>
-        <strong>${money(r.expected || 0)}</strong>
+        <span>Total clientes</span>
+        <strong>${money(gross)}</strong>
+      </div>
+      <div class="receipt-item">
+        <span>Transferencias</span>
+        <strong>${money(transferred)}</strong>
+      </div>
+      <div class="receipt-item">
+        <span>Efectivo esperado</span>
+        <strong>${money(expected)}</strong>
       </div>
       <div class="receipt-item">
         <span>Gastos</span>
@@ -829,7 +940,7 @@ function receiptHtml(r) {
         <strong>${money(toRender)}</strong>
       </div>
       <div class="receipt-item">
-        <span>Recibido</span>
+        <span>Recibido efectivo</span>
         <strong>${money(r.received || 0)}</strong>
       </div>
       <div class="receipt-item">
@@ -849,7 +960,8 @@ function receiptHtml(r) {
 
 function printReceipt(r) {
   const receipt = receiptHtml(r)
-  const printWindow = window.open('', '_blank', 'width=430,height=760')
+
+  const printWindow = window.open('', '_blank', 'width=420,height=700')
 
   if (!printWindow) {
     alert('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes para este sitio.')
@@ -872,20 +984,15 @@ function printReceipt(r) {
           html,
           body {
             width: 80mm;
-            min-width: 80mm;
-            max-width: 80mm;
             margin: 0;
             padding: 0;
             background: #fff;
-            color: #000;
-          }
-
-          * {
-            box-sizing: border-box;
           }
 
           body {
+            display: block;
             font-family: Arial, Helvetica, sans-serif;
+            color: #000;
           }
 
           .receipt {
@@ -893,11 +1000,12 @@ function printReceipt(r) {
             max-width: 80mm;
             margin: 0;
             padding: 3mm 3mm 5mm 3mm;
+            box-sizing: border-box;
             background: #fff;
             color: #000;
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 14.5px;
-            line-height: 1.2;
+            font-size: 13.5px;
+            line-height: 1.22;
             font-weight: 600;
           }
 
@@ -905,22 +1013,17 @@ function printReceipt(r) {
             margin: 0 0 2mm 0;
             padding: 0;
             text-align: center;
-            font-size: 16px;
+            font-size: 15px;
             line-height: 1.1;
             font-weight: 800;
-            letter-spacing: .3px;
+            letter-spacing: .4px;
           }
 
           .receipt-center {
             text-align: center;
-            font-size: 13px;
+            font-size: 12.5px;
             font-weight: 800;
             margin-bottom: 2mm;
-          }
-
-          .receipt-meta {
-            font-size: 13.5px;
-            line-height: 1.18;
           }
 
           .receipt-line {
@@ -929,21 +1032,18 @@ function printReceipt(r) {
           }
 
           .receipt-section {
-            font-size: 13px;
+            font-size: 12.5px;
             font-weight: 800;
             margin: 1.5mm 0 1mm 0;
-            text-transform: uppercase;
           }
 
           .receipt-item {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 24mm;
+            grid-template-columns: 1fr 23mm;
             column-gap: 2mm;
             align-items: start;
             width: 100%;
-            margin: .9mm 0;
-            font-size: 14.5px;
-            line-height: 1.18;
+            margin: .8mm 0;
           }
 
           .receipt-item span {
@@ -953,6 +1053,15 @@ function printReceipt(r) {
             word-break: normal;
           }
 
+          .receipt-subitem {
+            font-size: 12.5px;
+            margin-left: 2mm;
+          }
+
+          .receipt-subitem span {
+            color: #222;
+          }
+
           .receipt-item strong {
             text-align: right;
             white-space: nowrap;
@@ -960,7 +1069,7 @@ function printReceipt(r) {
           }
 
           .receipt-note {
-            font-size: 12px;
+            font-size: 11.5px;
             font-weight: 500;
             line-height: 1.18;
             margin: 0 0 1mm 2mm;
@@ -971,7 +1080,7 @@ function printReceipt(r) {
             margin-top: 8mm;
             border-top: 1px solid #000;
             padding-top: 1mm;
-            font-size: 12.5px;
+            font-size: 12px;
             font-weight: 600;
           }
 
@@ -979,8 +1088,6 @@ function printReceipt(r) {
             html,
             body {
               width: 80mm;
-              min-width: 80mm;
-              max-width: 80mm;
               margin: 0;
               padding: 0;
             }
@@ -1181,8 +1288,19 @@ function closeModal() { $('modalRoot').innerHTML = '' }
 
 function exportCsv() {
   const rows = filteredReportRows()
-  const header = 'Fecha;Hora;Repartidor;Clientes;Esperado;Gastos;Recibido;Diferencia;Estado'
-  const body = rows.map(r => [r.rendition_date, String(r.rendition_time || '').slice(0,5), r.driver_name, (r.rendition_clients || []).map(c => c.client_name).join(', '), r.expected_amount, r.expenses_amount, r.received_amount, r.difference_amount, r.status].join(';'))
+  const header = 'Fecha;Hora;Repartidor;Clientes;Transferido;Esperado efectivo;Gastos;Recibido efectivo;Diferencia;Estado'
+  const body = rows.map(r => [
+    r.rendition_date,
+    String(r.rendition_time || '').slice(0,5),
+    r.driver_name,
+    (r.rendition_clients || []).map(c => c.client_name).join(', '),
+    r.transferred_amount || 0,
+    r.expected_amount,
+    r.expenses_amount,
+    r.received_amount,
+    r.difference_amount,
+    r.status
+  ].join(';'))
   const csv = [header, ...body].join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
   const link = document.createElement('a')
@@ -1191,3 +1309,4 @@ function exportCsv() {
   link.click()
   URL.revokeObjectURL(link.href)
 }
+
