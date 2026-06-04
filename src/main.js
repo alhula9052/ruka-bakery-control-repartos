@@ -394,14 +394,95 @@ function renderClientList(filter) {
 function addClientToDraft(id) {
   const client = state.clients.find(c => c.id === id)
   if (!client) return
+
   openModal('Agregar cliente visitado', `
-    <div class="field"><label>Cliente</label><input class="input" value="${safe(client.name)}" disabled></div>
-    <div class="field"><label>Monto</label><input id="clientAmount" class="input" type="text" inputmode="numeric" autofocus></div>
-    <div class="field"><label>Comentario</label><textarea id="clientComment" rows="3" class="input"></textarea></div>
-    <button class="btn" id="confirmClient"><i class="fa-solid fa-plus"></i> Agregar cliente</button>
+    <div class="field">
+      <label>Cliente</label>
+      <input class="input" value="${safe(client.name)}" disabled>
+    </div>
+
+    <div class="field">
+      <label>Monto total entregado / vendido</label>
+      <input id="clientAmount" class="input" type="text" inputmode="numeric" autofocus>
+    </div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>Recibido en efectivo</label>
+        <input id="clientCashAmount" class="input" type="text" inputmode="numeric">
+      </div>
+
+      <div class="field">
+        <label>Transferido por cliente</label>
+        <input id="clientTransferAmount" class="input" type="text" inputmode="numeric">
+      </div>
+    </div>
+
+    <div class="notice" id="clientPaymentCheck">
+      Ingresa el total y cómo pagó el cliente.
+    </div>
+
+    <div class="field">
+      <label>Comentario / respaldo</label>
+      <textarea id="clientComment" rows="3" class="input" placeholder="Ej.: Transferencia pendiente de verificar, transferencia parcial, comprobante enviado, etc."></textarea>
+    </div>
+
+    <button class="btn" id="confirmClient">
+      <i class="fa-solid fa-plus"></i> Agregar cliente
+    </button>
   `)
-  bindMoneyInput($('clientAmount'), () => {})
+
+  const updatePaymentCheck = () => {
+    const total = parseMoney($('clientAmount').value)
+    const cash = parseMoney($('clientCashAmount').value)
+    const transfer = parseMoney($('clientTransferAmount').value)
+    const paid = cash + transfer
+    const diff = total - paid
+
+    const box = $('clientPaymentCheck')
+
+    if (!total) {
+      box.textContent = 'Ingresa el total entregado / vendido.'
+      box.className = 'notice'
+      return
+    }
+
+    if (diff === 0) {
+      box.textContent = `Cuadrado: efectivo ${money(cash)} + transferencia ${money(transfer)} = ${money(total)}`
+      box.className = 'notice ok'
+      return
+    }
+
+    if (diff > 0) {
+      box.textContent = `Falta asignar forma de pago por ${money(diff)}`
+      box.className = 'notice warn'
+      return
+    }
+
+    box.textContent = `Efectivo + transferencia supera el total por ${money(Math.abs(diff))}`
+    box.className = 'notice danger'
+  }
+
+  bindMoneyInput($('clientAmount'), updatePaymentCheck)
+  bindMoneyInput($('clientCashAmount'), updatePaymentCheck)
+  bindMoneyInput($('clientTransferAmount'), updatePaymentCheck)
+
   $('confirmClient').addEventListener('click', () => {
+    const amount = parseMoney($('clientAmount').value)
+    const cashAmount = parseMoney($('clientCashAmount').value)
+    const transferAmount = parseMoney($('clientTransferAmount').value)
+    const paid = cashAmount + transferAmount
+
+    if (!amount) {
+      alert('Ingresa el monto total entregado / vendido.')
+      return
+    }
+
+    if (paid !== amount) {
+      alert('El efectivo más la transferencia debe cuadrar exactamente con el monto total del cliente.')
+      return
+    }
+
     state.draft.clients.push({
       client_id: client.id,
       client_name: client.name,
@@ -409,8 +490,11 @@ function addClientToDraft(id) {
       document_type: null,
       document_number: null,
       products: $('clientComment').value.trim(),
-      amount: parseMoney($('clientAmount').value),
+      amount,
+      transfer_amount: transferAmount,
+      cash_expected_amount: cashAmount,
     })
+
     closeModal()
     renderRendition()
   })
@@ -419,7 +503,11 @@ function addClientToDraft(id) {
 function renderSelectedClients() {
   const box = $('selectedClients')
   if (!box) return
-  if (!state.draft.clients.length) { box.innerHTML = '<div class="empty">Sin clientes agregados</div>'; return }
+
+  if (!state.draft.clients.length) {
+    box.innerHTML = '<div class="empty">Sin clientes agregados</div>'
+    return
+  }
 
   box.innerHTML = `
     <div class="table-wrap">
@@ -429,23 +517,41 @@ function renderSelectedClients() {
             <th>Cliente</th>
             <th>Comentario</th>
             <th>Total</th>
-            <th>Transferido</th>
-            <th>Efectivo esperado</th>
+            <th>Efectivo</th>
+            <th>Transferencia</th>
+            <th>Cuadratura</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           ${state.draft.clients.map((c, i) => {
+            const total = Number(c.amount || 0)
+            const cashAmount = Number(
+              c.cash_expected_amount ?? (total - Number(c.transfer_amount || 0))
+            )
             const transferAmount = Number(c.transfer_amount || 0)
-            const cashExpected = Number(c.cash_expected_amount ?? (Number(c.amount || 0) - transferAmount))
+            const rowDiff = total - cashAmount - transferAmount
+            const isBalanced = rowDiff === 0
+
             return `
               <tr>
                 <td>${safe(c.client_name || c.name)}</td>
                 <td>${safe(c.products || '')}</td>
-                <td>${money(c.amount)}</td>
+                <td>${money(total)}</td>
+                <td>${money(cashAmount)}</td>
                 <td>${money(transferAmount)}</td>
-                <td>${money(cashExpected)}</td>
-                <td><button class="btn ghost small remove-client" data-i="${i}">Quitar</button></td>
+                <td>
+                  ${
+                    isBalanced
+                      ? '<span class="badge correcta">Cuadrado</span>'
+                      : `<span class="badge faltante">${money(rowDiff)}</span>`
+                  }
+                </td>
+                <td>
+                  <button class="btn ghost small remove-client" data-i="${i}">
+                    Quitar
+                  </button>
+                </td>
               </tr>
             `
           }).join('')}
@@ -453,7 +559,13 @@ function renderSelectedClients() {
       </table>
     </div>
   `
-  box.querySelectorAll('.remove-client').forEach(b => b.addEventListener('click', () => { state.draft.clients.splice(Number(b.dataset.i), 1); renderRendition() }))
+
+  box.querySelectorAll('.remove-client').forEach(button => {
+    button.addEventListener('click', () => {
+      state.draft.clients.splice(Number(button.dataset.i), 1)
+      renderRendition()
+    })
+  })
 }
 
 
