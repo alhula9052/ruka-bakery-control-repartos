@@ -10,7 +10,8 @@
     "netlify:dev": "netlify dev"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.107.0"
+    "@supabase/supabase-js": "^2.107.0",
+    "chart.js": "^4.5.1"
   },
   "devDependencies": {
     "vite": "^5.4.21"

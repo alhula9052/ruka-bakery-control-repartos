@@ -86,6 +86,31 @@ button{
   padding:54px;
 }
 
+.brand-logo{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+}
+
+.brand-logo img{
+  display:block;
+  width:190px;
+  max-width:100%;
+  height:auto;
+  object-fit:contain;
+}
+
+.sidebar-logo{
+  margin-bottom:30px;
+}
+
+.sidebar-logo img{
+  width:200px;
+  max-width:100%;
+  height:auto;
+  filter:drop-shadow(0 6px 14px rgba(0,0,0,.18));
+}
+
 .brand{
   display:flex;
   gap:14px;
@@ -316,10 +341,14 @@ textarea:focus{
   gap:18px;
 }
 
-.kpis{
-  grid-template-columns:repeat(5,minmax(160px,1fr));
+.kpi .value{
+  font-size:clamp(13px,1vw,16px);
+  font-weight:900;
+  margin-top:10px;
+  white-space:nowrap;
+  line-height:1.05;
+  letter-spacing:-.4px;
 }
-
 .card{
   background:rgba(255,255,255,.84);
   border:1px solid var(--line);
@@ -335,12 +364,46 @@ textarea:focus{
 }
 
 .kpi .value{
-  font-size:26px;
+  font-size:clamp(14px,1.15vw,18px);
   font-weight:900;
-  margin-top:12px;
+  margin-top:10px;
   white-space:nowrap;
+  line-height:1.05;
+  letter-spacing:-.6px;
+  max-width:100%;
+  overflow:visible;
+  text-overflow:clip;
+}
+.kpi{
+  min-width:0;
+  min-height:116px;
 }
 
+.kpi .label{
+  line-height:1.15;
+  min-height:32px;
+}
+
+@media(max-width:1280px){
+  .kpis{
+    grid-template-columns:repeat(auto-fit,minmax(125px,1fr));
+    gap:14px;
+  }
+
+  .card.kpi{
+    padding:16px 12px;
+  }
+
+.kpi .value{
+  font-size:clamp(16px,1.35vw,21px);
+}
+}
+
+@media(max-width:980px){
+  .kpis{
+    grid-template-columns:repeat(2,1fr);
+  }
+}
 .cols{
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -931,4 +994,157 @@ body.printing-receipt .receipt-item strong{
   background:#fff7ed;
   color:#5a3928;
   font-size:13px;
+}
+
+/* AJUSTE SIDEBAR LOGO RUKA */
+
+.sidebar{
+  width:280px;
+  min-width:280px;
+  padding:24px 18px;
+  background:linear-gradient(180deg,#4c2515,#743916);
+}
+
+.sidebar .brand,
+.sidebar .brand-logo,
+.sidebar-logo{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  width:100%;
+  margin:0 0 26px 0;
+  padding:0;
+}
+
+.sidebar-logo img,
+.sidebar .brand-logo img{
+  display:block;
+  width:200px;
+  max-width:100%;
+  height:auto;
+  object-fit:contain;
+  background:#fff;
+  border-radius:12px;
+  padding:8px;
+  box-shadow:0 10px 24px rgba(0,0,0,.18);
+}
+
+.sidebar .nav{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:8px;
+  width:100%;
+}
+
+.sidebar .nav button{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  width:100%;
+  min-height:46px;
+  padding:13px 16px;
+  border-radius:16px;
+  background:transparent;
+  color:rgba(255,255,255,.86);
+  font-weight:800;
+  text-align:left;
+  line-height:1.1;
+  box-shadow:none;
+}
+
+.sidebar .nav button span{
+  display:block;
+  color:inherit;
+  background:transparent;
+}
+
+.sidebar .nav button.active,
+.sidebar .nav button:hover{
+  background:rgba(255,255,255,.15);
+  color:#fff;
+}
+
+/* FIX DASHBOARD KPI */
+
+.grid.kpis{
+  display:grid!important;
+  grid-template-columns:repeat(7,minmax(0,1fr))!important;
+  gap:12px!important;
+  align-items:stretch!important;
+}
+
+.grid.kpis .card.kpi{
+  min-width:0!important;
+  min-height:104px!important;
+  padding:16px 12px!important;
+}
+
+.grid.kpis .kpi .label{
+  font-size:12px!important;
+  line-height:1.15!important;
+  min-height:30px!important;
+  color:var(--muted)!important;
+  font-weight:800!important;
+}
+
+.grid.kpis .kpi .value{
+  font-size:15px!important;
+  line-height:1.05!important;
+  margin-top:8px!important;
+  font-weight:900!important;
+  white-space:nowrap!important;
+  letter-spacing:-.35px!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+}
+
+/* Pantallas medianas */
+@media(max-width:1250px){
+  .grid.kpis{
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  }
+}
+
+/* Tablet */
+@media(max-width:900px){
+  .grid.kpis{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+}
+
+/* Celular */
+@media(max-width:560px){
+  .grid.kpis{
+    grid-template-columns:1fr!important;
+  }
+}
+
+.dashboard-charts{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:18px;
+}
+
+.chart-box{
+  position:relative;
+  width:100%;
+  height:280px;
+  min-height:280px;
+  padding-top:8px;
+}
+
+.chart-box canvas{
+  width:100%!important;
+  height:100%!important;
+}
+
+@media(max-width:900px){
+  .dashboard-charts{
+    grid-template-columns:1fr;
+  }
+
+  .chart-box{
+    height:240px;
+    min-height:240px;
+  }
 }
