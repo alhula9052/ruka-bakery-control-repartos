@@ -47,8 +47,37 @@ function bindRutInput(input) {
   input.addEventListener('input', () => { input.value = formatRut(input.value) })
   input.addEventListener('blur', () => { input.value = formatRut(input.value) })
 }
-const today = () => new Date().toISOString().slice(0, 10)
-const nowTime = () => new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+function chileNowParts() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(new Date())
+
+  const get = (type) => parts.find(p => p.type === type)?.value || ''
+
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+    minute: get('minute')
+  }
+}
+
+const today = () => {
+  const p = chileNowParts()
+  return `${p.year}-${p.month}-${p.day}`
+}
+
+const nowTime = () => {
+  const p = chileNowParts()
+  return `${p.hour}:${p.minute}`
+}
 const safe = (value) => String(value ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[c]))
 
 const state = {
@@ -600,17 +629,18 @@ async function saveRendition() {
   const expected = state.draft.clients.reduce((s, c) => s + Number(c.cash_expected_amount ?? (Number(c.amount || 0) - Number(c.transfer_amount || 0))), 0)
   const expenses = state.draft.expenses.reduce((s, e) => s + Number(e.amount || 0), 0)
 
-  const payload = {
-    rendition_date: today(),
-    driver_id: state.draft.driver.id,
-    driver_name: state.draft.driver.name,
-    expected_amount: expected,
-    transferred_amount: transferred,
-    expenses_amount: expenses,
-    received_amount: Number(state.draft.received || 0),
-    observations: state.draft.observations || null,
-    updated_by: state.user.id,
-  }
+const payload = {
+  rendition_date: today(),
+  rendition_time: nowTime(),
+  driver_id: state.draft.driver.id,
+  driver_name: state.draft.driver.name,
+  expected_amount: expected,
+  transferred_amount: transferred,
+  expenses_amount: expenses,
+  received_amount: Number(state.draft.received || 0),
+  observations: state.draft.observations || null,
+  updated_by: state.user.id,
+}
 
   let renditionId = state.editingId
   let res
