@@ -797,31 +797,6 @@ function buildReceiptFromRendition(r) {
 }
 
 
-function shortReceiptName(name) {
-  const original = String(name || '').trim()
-  if (!original) return 'Cliente'
-
-  const cleaned = original
-    .replace(/\s+/g, ' ')
-    .replace(/SOCIEDAD/gi, 'SOC.')
-    .replace(/RESPONSABILIDAD/gi, 'RESP.')
-    .replace(/LIMITADA/gi, 'LTDA.')
-    .replace(/ALIMENTACION/gi, 'ALIM.')
-    .replace(/ALIMENTACIÓN/gi, 'ALIM.')
-    .replace(/SERVICIOS/gi, 'SERV.')
-    .replace(/COMERCIAL/gi, 'COM.')
-    .replace(/INVERSIONES/gi, 'INV.')
-    .replace(/GASTRONOMIA/gi, 'GASTR.')
-    .replace(/GASTRONOMÍA/gi, 'GASTR.')
-    .replace(/RESTAURANT/gi, 'REST.')
-    .replace(/PANADERIA/gi, 'PAN.')
-    .replace(/PANADERÍA/gi, 'PAN.')
-    .replace(/CAFETERIA/gi, 'CAF.')
-    .replace(/CAFETERÍA/gi, 'CAF.')
-    .trim()
-
-  return cleaned.length > 32 ? `${cleaned.slice(0, 32)}…` : cleaned
-}
 
 function shortReceiptText(value, max = 38) {
   const text = String(value || '').replace(/\s+/g, ' ').trim()
