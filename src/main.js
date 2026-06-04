@@ -220,8 +220,7 @@ function renderLogin() {
           <button class="btn" type="submit">
             <i class="fa-solid fa-right-to-bracket"></i> Entrar
           </button>
-
-          <p class="auth-note">El acceso depende del usuario creado en Supabase Auth y de su perfil activo en el sistema.</p>
+          
         </form>
       </section>
     </main>
